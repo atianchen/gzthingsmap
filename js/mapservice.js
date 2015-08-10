@@ -547,6 +547,8 @@ cser.gmap=function(options)
 			features: []
 		})
 	});
+  	this.minZoom = cser.isDef(options.minZoom)?options.minZoom:1;
+	this.maxZoom = cser.isDef(options.maxZoom)?options.maxZoom:22;
 	this.map = new ol.Map({
 		interactions: ol.interaction.defaults().extend([new cser.observer.ol(this)]),
         target: this.target,
@@ -564,14 +566,15 @@ cser.gmap=function(options)
 			 }),
 			new ol.layer.Tile({
 			source:new ol.source.gmap({
-			maxZoom: this.maxzoom,
 			tiletype:ol.gmap.tiletype.LABEL,
 			wrapX: true
 		  })
 		}),this.vectorLayer],
         view: new ol.View({
           center: cser.geo.transform(this.center),
-          zoom: this.zoom
+          zoom: this.zoom,
+			minZoom: this.minZoom,
+			maxZoom: this.maxZoom
         })
       });
 	globals.map = this.map;
