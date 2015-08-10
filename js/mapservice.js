@@ -51,6 +51,16 @@ cser.geo.reverseTransform=function(coord)
 {
 	return ol.proj.transform(coord, 'EPSG:3857', 'EPSG:4326')
 };
+cser.color={};
+cser.color.hexToRgb=function(hexColor)
+{
+	hexColor = goog.color.normalizeHex(hexColor);
+	var r = parseInt(hexColor.substr(1, 2), 16);
+	var g = parseInt(hexColor.substr(3, 2), 16);
+	var b = parseInt(hexColor.substr(5, 2), 16);
+
+	return [r, g, b];
+};
 cser.Object=function(args)
 {
 	this.options = args;
@@ -307,25 +317,94 @@ cser.overlay.prototype.update=function()
 cser.overlay.prototype.setMap = function(map)
 {
 	this.map = map;
-}
+};
+/**几何图形**/
+cser.geometry=function(options)
+{
+	cser.base(this,options);
+	this.opacity = cser.isDef(options.opacity)?options.opacity:0.9;
+	this.strokeOpacity = cser.isDef(options.strokeOpacity)?options.strokeOpacity:0.9;
+	if  (cser.isDef(options.color))
+	{
+		var rgb = cser.color.hexToRgb(options.color);
+		this.color = [rgb[0],rgb[1],rgb[2],this.strokeOpacity];
+	}
+	if  (cser.isDef(options.strokeWidth))
+	{
+		this.strokeWidth = options.strokeWidth;
+	}
+	if (cser.isDef(options.fillColor))
+	{
+		var rgb = cser.color.hexToRgb(options.fillColor);
+		this.fillColor = [rgb[0],rgb[1],rgb[2],this.opacity];
+	}
+	else{
+		this.fillColor = [255,255,255,this.opacity];
+	}
+};
+cser.inherits(cser.geometry,cser.overlay);
+cser.geometry.prototype.setFillColor = function(color)
+{
+	var rgb = cser.color.hexToRgb(color);
+	this.fillColor = [rgb[0],rgb[1],rgb[2],this.opacity];
+	this.feature.getStyle().getFill().setColor(this.fillColor);
+};
+cser.geometry.prototype.setOpacity = function(opacity)
+{
+	this.opacity = opacity;
+	this.fillColor[3]=this.opacity;
+	this.feature.getStyle().getFill().setColor(this.fillColor);
+};
+cser.geometry.prototype.getStyle = function()
+{
+
+	if (cser.isDef(this.color))
+	{
+		return new ol.style.Style({
+			fill: new ol.style.Fill({
+				color:this.fillColor
+			}),
+			stroke:new ol.style.Stroke({
+				width: (cser.isDef(this.strokeWidth))?this.strokeWidth:1,
+				color: this.color
+			})
+		});
+	}
+	else
+	{
+		return new ol.style.Style({
+			fill: new ol.style.Fill({
+				color:this.fillColor
+			})
+		});
+	}
+};
+/**圆形**/
 cser.circle=function(options)
 {
 	cser.base(this,options);
 	this.radius = options.radius;
-	this.obj = new ol.Feature(
-			  new ol.geom.Circle(cser.geo.transform(this.position),this.radius)
+
+	this.feature = new ol.Feature(
+		{geometry: new ol.geom.Circle(cser.geo.transform(this.position),this.radius)}
 		);
+	this.feature.setStyle(this.getStyle());
 };
-cser.inherits(cser.circle,cser.overlay);
+cser.inherits(cser.circle,cser.geometry);
 cser.circle.prototype.setRadius = function(radius)
 {
-
+	this.radius = radius;
+	this.feature.getGeometry().setRadius(radius);
+};
+cser.circle.prototype.setCenter = function(point)
+{
+	cser.superinvoke(this,'setPosition',point);
+	this.feature.getGeometry().setCenter(cser.geo.transform(point));
 };
 cser.circle.prototype.render = function()
 {
-	
+	return this.feature;
 };
-
 /**文本**/
 cser.text = function(options)
 {

@@ -82070,7 +82070,7 @@ ol.OL3_URL = 'http://www.firesos.cn/';
  * @const
  * @type {string}
  */
-ol.OL3_LOGO_URL = 'logo.png';
+ol.OL3_LOGO_URL = 'img/logo.png';
 
 
 /**
