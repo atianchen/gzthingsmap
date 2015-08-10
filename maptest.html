@@ -17,7 +17,7 @@
 <div id="map" class="map" style="height:600px;width:100%"></div>
 <script>
     //[106.588156,29.567628]
-    var map = new cser.gmap({target:document.getElementById('map'),center:[106.588156,29.567628],zoom:17});
+    var map = new cser.gmap({target:document.getElementById('map'),center:[106.588156,29.567628],zoom:17,minZoom:6,maxZoom:19});
     var marker = new cser.gmarker({position:[106.588156,29.567628],icon:new cser.icon({src:'img/marker.png',anchor:[0.5, 34],size:[20,34]}),
         label:new cser.text({text:"测试",size:"14px",font:'宋体',offset:[0,10]}),draggable:true});
     //marker.setPosition([106.588156,29.567628]);
