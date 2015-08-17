@@ -22,8 +22,7 @@ ol.source.gmap = function(options)
 		return ol.gmap.urlTpl.replace('{z}', (tileCoord[0]).toString())
 					.replace('{x}', tileCoord[1].toString())
 					.replace('{t}', this.type)
-					.replace('{y}', (-tileCoord[2]-1).toString());			
-					alert(url);
+					.replace('{y}', (-tileCoord[2]-1).toString());
 	},
 	wrapX: goog.isDef(options.wrapX) ? options.wrapX : true
   });
@@ -45,7 +44,19 @@ cser.events={
 cser.geo={};
 cser.geo.transform=function(coord)
 {
-	return ol.proj.transform(coord, 'EPSG:4326', 'EPSG:3857')
+	if (coord instanceof Array && coord.length>0 && coord[0] instanceof Array)
+	{
+		var rs = [];
+		for (var i=0;i<coord.length;i++)
+		{
+			rs.push(cser.geo.transform(coord[i]));
+		}
+		return rs;
+	}
+	else
+	{
+		return ol.proj.transform(coord, 'EPSG:4326', 'EPSG:3857')
+	}
 };
 cser.geo.reverseTransform=function(coord)
 {
@@ -244,12 +255,16 @@ cser.map=function(options)
 	this.minzoom =  cser.isDef(options.minzoom) ? options.minzoom :0;
 	this.maxzoom =  cser.isDef(options.maxzoom) ? options.maxzoom :20;
 	this.zoom = cser.isDef(options.zoom)?options.zoom:10;
-	this.overlays = [];	
+	this.overlays = {_seq:0};
 	this.center = options.center;
 	this.events  = {};
 	this.status = {};
 };
 cser.inherits(cser.map,cser.Object);
+cser.map.prototype.setCenter=function(point)
+{
+	this.center  = point;
+};
 cser.map.prototype.addEvent = function(eventName,eventHandler)
 {
 	this.events[eventName] = eventHandler;
@@ -358,7 +373,7 @@ cser.geometry.prototype.setOpacity = function(opacity)
 cser.geometry.prototype.getStyle = function()
 {
 
-	if (cser.isDef(this.color))
+	if (cser.isDef(this.color)  && cser.isDef(this.fillColor))
 	{
 		return new ol.style.Style({
 			fill: new ol.style.Fill({
@@ -370,11 +385,20 @@ cser.geometry.prototype.getStyle = function()
 			})
 		});
 	}
-	else
+	else if (cser.isDef(this.fillColor))
 	{
 		return new ol.style.Style({
 			fill: new ol.style.Fill({
 				color:this.fillColor
+			})
+		});
+	}
+	else
+	{
+		return new ol.style.Style({
+			stroke:new ol.style.Stroke({
+				width: (cser.isDef(this.strokeWidth))?this.strokeWidth:1,
+				color: this.color
 			})
 		});
 	}
@@ -405,6 +429,27 @@ cser.circle.prototype.render = function()
 {
 	return this.feature;
 };
+
+/**line**/
+cser.line = function(options)
+{
+	cser.base(this,options);
+	this.points = options.points;
+	this.feature = new ol.Feature(
+		{geometry: new ol.geom.LineString(cser.geo.transform(this.points))}
+	);
+	this.feature.setStyle(this.getStyle());
+};
+cser.inherits(cser.line,cser.geometry);
+cser.line.prototype.setPoints = function(points)
+{
+	this.points = options.points;
+	this.feature.getGeometry().setCenter(cser.geo.transform(this.points));
+};
+cser.line.prototype.render = function()
+{
+	return this.feature;
+};
 /**文本**/
 cser.text = function(options)
 {
@@ -419,7 +464,7 @@ cser.text = function(options)
 				stroke: new ol.style.Stroke({color:this.color, width: 1}),
 				offsetX: this.offset[0],
 				offsetY: this.offset[1],
-				font: this.weight + ' ' + this.size + ' ' + this.font,
+				font: this.weight + ' ' + this.size + ' ' + this.font
 			  });
 };
 cser.text.prototype.render = function()
@@ -506,9 +551,44 @@ cser.marker.prototype.setIcon = function(icon)
 	this.icon = icon;
 	if (this.iconFeature)
 	{
-		this.iconFeature.getStyle().setImage(this.icon.render);
+		var oldStyle = this.iconFeature.getStyle();
+		this.iconFeature.setStyle(this.getStyle());
+		delete oldStyle;
+		oldStyle = null;
 	}
 	this.update();
+};
+cser.marker.prototype.setLabel = function(text)
+{
+	this.label = text;
+	if (this.iconFeature)
+	{
+		var oldStyle = this.iconFeature.getStyle();
+		this.iconFeature.setStyle(this.getStyle());
+		delete oldStyle;
+		oldStyle = null;
+	}
+};
+cser.marker.prototype.getLabel = function()
+{
+	return this.label;
+};
+cser.marker.prototype.getStyle = function()
+{
+	var iconStyle = null;
+	if (cser.isDef(this.label))
+	{
+		iconStyle = new ol.style.Style({
+			image: this.icon.render(),
+			text:this.label.render()
+		});
+	}
+	else{
+		iconStyle = new ol.style.Style({
+			image: this.icon.render()
+		});
+	}
+	return iconStyle;
 };
 /*绘制更新**/
 cser.marker.prototype.render=function()
@@ -518,11 +598,9 @@ cser.marker.prototype.render=function()
 		this.iconFeature = new ol.Feature({
 		  geometry:new ol.geom.Point(cser.geo.transform(this.position))
 		});
-		var iconStyle = new ol.style.Style({
-		  image: this.icon.render(),
-			text:this.label.render()
-		});
-		this.iconFeature.setStyle(iconStyle);
+
+
+		this.iconFeature.setStyle(this.getStyle());
 		this.iconFeature.type = cser.overlay.overlayTypes.MARKER;
 		this.iconFeature.marker = this;
 	}
@@ -581,6 +659,11 @@ cser.gmap=function(options)
 	this.initEventListener();
 };
 cser.inherits(cser.gmap,cser.map);
+cser.gmap.prototype.setCenter = function(point)
+{
+	cser.superinvoke(this,'setCenter',point);
+	this.map.getView().setCenter(cser.geo.transform(this.center));
+};
 cser.gmap.prototype.initEventListener=function()
 {
 	var events = this.events;
@@ -593,8 +676,10 @@ cser.gmap.prototype.initEventListener=function()
 		}
 	});
 	this.map.on('click', function(evt) {
+
 		if (events[cser.events.MARKERCLICK])
 		{
+			evt.position = cser.geo.reverseTransform(evt.coordinate);
 			var feature = globals.map.forEachFeatureAtPixel(evt.pixel,
 			  function(feature, layer) {
 				return feature;
@@ -606,6 +691,7 @@ cser.gmap.prototype.initEventListener=function()
 		}
 		if (events[cser.events.MAPCLICK])
 		{
+
 			evt.position = cser.geo.reverseTransform(evt.coordinate);
 			events[cser.events.MAPCLICK].call(that,evt);
 		}
@@ -630,14 +716,15 @@ cser.gmap.prototype.initEventListener=function()
 					return;
 			} 
 			globals.map.getTarget().style.cursor = '';
-			that.closePopup();
+			//that.closePopup();
 		}
 	});
 
 };
 cser.gmap.prototype.addOverlay=function(overlay)
 {
-	this.overlays.push(overlay);
+	overlay._id = ++this.overlays.seq;
+	this.overlays[overlay._id]=overlay;
 	overlay.setMap(this);
 	var overlayFeature = overlay.render();
 	if (cser.isDef(overlayFeature))
@@ -645,7 +732,41 @@ cser.gmap.prototype.addOverlay=function(overlay)
 		this.vectorLayer.getSource().addFeature(overlayFeature);
 	}
 };
-cser.map.prototype.showPopup=function(overlay,title,content,offset)
+cser.gmap.prototype.removeOverlay=function(overlay)
+{
+	this.vectorLayer.getSource().removeFeature(overlay.render());
+	var _id = overlay._id;
+	delete overlay;
+	this.overlays[_id]=null;
+};
+cser.gmap.prototype.showPopupAtPosition=function(position,title,content,offset)
+{
+	if (!cser.isDef(this.popup))
+	{
+		var pv = document.createElement('div');
+		pv.className = 'popup';
+		pv.id  = "popup";
+		this.target.appendChild(pv);
+		this.popup=new ol.Overlay({
+			element: pv,
+			positioning: 'bottom-center',
+			stopEvent: true
+		});
+		this.map.addOverlay(this.popup);
+	}
+	if (offset)
+	{
+		position[0]=position[0]+offset[0]*this.map.getView().getResolution();
+		position[1]=position[1]+offset[1]*this.map.getView().getResolution();
+	}
+	this.popup.setPosition(position);
+	$('#popup').qtip({
+		content: {text: content,title:{text:title,button:"关闭"}}, hide: { event: false  },  position: {my: 'bottom center',at: 'bottom center'},style: {classes: 'qtip-light qtip-shadow qtip-rounded'}
+	});
+	$("#popup").qtip('show');
+	this.status[cser.status.POPUP]=true;
+};
+cser.gmap.prototype.showPopup=function(overlay,title,content,offset)
 {
 	if (!cser.isDef(this.popup))
 	{
@@ -668,7 +789,7 @@ cser.map.prototype.showPopup=function(overlay,title,content,offset)
 	 }
 	 this.popup.setPosition(showPosition);
 	$('#popup').qtip({ 
-		content: {text: content,title:title}, hide: { event: false  },  position: {my: 'bottom center',at: 'bottom center'},style: {classes: 'qtip-light qtip-shadow qtip-rounded'}
+		content: {text: content,title:{text:title,button:"关闭"}}, hide: { event: false  },  position: {my: 'bottom center',at: 'bottom center'},style: {classes: 'qtip-light qtip-shadow qtip-rounded'}
 	});
 	$("#popup").qtip('show');
 	this.status[cser.status.POPUP]=true;
