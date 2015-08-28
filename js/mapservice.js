@@ -5,6 +5,7 @@ goog.require('ol.source.XYZ');
 globals={};
 ol.gmap={ urlTpl:"http://mt2.google.cn/vt/lyrs={t}&hl=zh-CN&gl=cn&x={x}&y={y}&z={z}"};
 ol.gmap.tiletype={BASEMAP:"s",LABEL:"h"};
+ol.amap={urlTpl:"http://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}"};
 ol.source.gmap = function(options)
 {
   this.type = goog.isDef(options.tiletype) ? options.tiletype : ol.gmap.tiletype.BASEMAP;
@@ -28,6 +29,27 @@ ol.source.gmap = function(options)
   });
 };
 ol.inherits(ol.source.gmap, ol.source.XYZ);
+ol.source.amap = function(options)
+{
+	goog.base(this, {
+		tileGrid:options.tileGrid,
+		maxZoom: options.maxZoom,
+		tileSize: options.tileSize,
+		attributions: options.attributions,
+		crossOrigin: options.crossOrigin,
+		logo: options.logo,
+		projection: options.projection,
+		tileLoadFunction: options.tileLoadFunction,
+		tilePixelRatio: options.tilePixelRatio,
+		tileUrlFunction: function(tileCoord) {
+			return ol.amap.urlTpl.replace('{z}', (tileCoord[0]).toString())
+				.replace('{x}', tileCoord[1].toString())
+				.replace('{y}', (-tileCoord[2]-1).toString());
+		},
+		wrapX: goog.isDef(options.wrapX) ? options.wrapX : true
+	});
+};
+ol.inherits(ol.source.amap, ol.source.XYZ);
 cser={};
 cser.events={
 	CLICK:"click",
@@ -261,9 +283,13 @@ cser.map=function(options)
 	this.status = {};
 };
 cser.inherits(cser.map,cser.Object);
-cser.map.prototype.setCenter=function(point)
+cser.map.prototype.setCenter = function(point)
 {
 	this.center  = point;
+};
+cser.map.prototype.setZoom = function(zoom)
+{
+	this.zoom = zoom;
 };
 cser.map.prototype.addEvent = function(eventName,eventHandler)
 {
@@ -616,7 +642,8 @@ cser.gmarker.prototype.setPosition=function(point)
 {
 	cser.superinvoke(this,'setPosition',point);
 };
-
+MAPTYPE_NORMAL = "NORMAL";
+MAPTYPE_SATELLITE ="SATELLITE";
 cser.gmap=function(options)
 {
 	cser.base(this,options);
@@ -625,6 +652,32 @@ cser.gmap=function(options)
 			features: []
 		})
 	});
+	this.tiles = {
+		SATELLITE:[
+		new ol.layer.Tile({
+			source: new ol.source.gmap({
+				maxZoom: this.maxzoom,
+				tiletype: ol.gmap.tiletype.BASEMAP,
+				wrapX: true
+			})
+		}),
+		new ol.layer.Tile({
+			source: new ol.source.gmap({
+				tiletype: ol.gmap.tiletype.LABEL,
+				wrapX: true
+			})
+		})]
+		,
+		NORMAL:[
+			new ol.layer.Tile({
+				source: new ol.source.amap({
+					wrapX: true
+				})
+			})
+		]
+	};
+	this.controls = [];
+	this.mapType = cser.isDef(options.mapType)?options.mapType:MAPTYPE_SATELLITE;
   	this.minZoom = cser.isDef(options.minZoom)?options.minZoom:1;
 	this.maxZoom = cser.isDef(options.maxZoom)?options.maxZoom:22;
 	this.map = new ol.Map({
@@ -634,20 +687,10 @@ cser.gmap=function(options)
 			 attributionOptions: /** @type {olx.control.AttributionOptions} */ ({
 				  collapsible: false
 				})
-			  }),
-        layers:[new ol.layer.Tile({
-			  source: new ol.source.gmap({
-				maxZoom: this.maxzoom,
-				tiletype:ol.gmap.tiletype.BASEMAP,
-				wrapX: true
-			  })
-			 }),
-			new ol.layer.Tile({
-			source:new ol.source.gmap({
-			tiletype:ol.gmap.tiletype.LABEL,
-			wrapX: true
-		  })
-		}),this.vectorLayer],
+			  }).extend([
+				 new ol.control.ScaleLine()
+			 ]),
+        layers:[],
         view: new ol.View({
           center: cser.geo.transform(this.center),
           zoom: this.zoom,
@@ -655,10 +698,69 @@ cser.gmap=function(options)
 			maxZoom: this.maxZoom
         })
       });
+	for (var i=0;i<this.tiles[this.mapType].length;i++)
+	{
+		this.map.addLayer(this.tiles[this.mapType][i]);
+	}
+	this.map.addLayer(this.vectorLayer);
 	globals.map = this.map;
 	this.initEventListener();
+	this.width = $("#"+this.target.id).width();
+	this.height = $("#"+this.target.id).height();
+	$(window).resize(
+			function()
+			{
+				var ctrls = globals.map.getControls();
+				for (var i=0;i<ctrls.length;i++)
+				{
+					ctrls[i].render();
+				}
+			}
+
+	);
 };
 cser.inherits(cser.gmap,cser.map);
+cser.gmap.prototype.getControls = function()
+{
+	return this.controls;
+};
+cser.gmap.prototype.addControl = function(control)
+{
+	control.setMap(this);
+	this.controls.push(control);
+	control.render();
+};
+cser.gmap.prototype.getSize = function()
+{
+	return [this.width,this.height];
+};
+cser.gmap.prototype.setZoom = function(zoom)
+{
+	cser.superinvoke(this,'setZoom',zoom);
+	map.getView().setZoom(zoom);
+};
+cser.gmap.prototype.setMapType = function(mt)
+{
+	if (this.mapType == mt)
+	{
+		return;
+	}
+	for (var i=0;i<this.tiles[this.mapType].length;i++)
+	{
+		this.map.removeLayer(this.tiles[this.mapType][i]);
+	}
+	this.map.removeLayer(this.vectorLayer);
+	this.mapType = mt;
+	for (var i=0;i<this.tiles[this.mapType].length;i++)
+	{
+		this.map.addLayer(this.tiles[this.mapType][i]);
+	}
+	this.map.addLayer(this.vectorLayer);
+};
+cser.gmap.prototype.getMapType = function()
+{
+	return this.mapType;
+};
 cser.gmap.prototype.setCenter = function(point)
 {
 	cser.superinvoke(this,'setCenter',point);
@@ -673,6 +775,15 @@ cser.gmap.prototype.initEventListener=function()
 		if (that.status[cser.status.POPUP])
 		{
 			that.closePopup();
+		}
+	});
+	this.map.on("dblclick",function(evt)
+	{
+		if (events[cser.events.DBLCLICK])
+		{
+			evt.position = cser.geo.reverseTransform(evt.coordinate);
+			events[cser.events.DBLCLICK].call(that,evt);
+			return false;
 		}
 	});
 	this.map.on('click', function(evt) {
@@ -787,8 +898,9 @@ cser.gmap.prototype.showPopup=function(overlay,title,content,offset)
 		 showPosition[0]=showPosition[0]+offset[0]*this.map.getView().getResolution();
 		 showPosition[1]=showPosition[1]+offset[1]*this.map.getView().getResolution();
 	 }
+
 	 this.popup.setPosition(showPosition);
-	$('#popup').qtip({ 
+	$('#popup').qtip({  overwrite: true,
 		content: {text: content,title:{text:title,button:"关闭"}}, hide: { event: false  },  position: {my: 'bottom center',at: 'bottom center'},style: {classes: 'qtip-light qtip-shadow qtip-rounded'}
 	});
 	$("#popup").qtip('show');
@@ -802,4 +914,86 @@ cser.map.prototype.closePopup=function()
 		$('#popup').qtip('hide');
 		this.status[cser.status.POPUP]=false;
 	}
+};
+POSITION_LEFTTOP = "lt";
+POSITION_RIGHTTOP = "rt";
+cser.control = function(options)
+{
+	this.anchor = cser.isDef(options.anchor)?options.anchor:[0,0];
+	this.position = options.position;
+	this.clickListener = options.click;
+	this.html = options.html;
+	this.id = options.id;
+	this.className = options.className;
+};
+cser.inherits(cser.control,cser.Object);
+cser.control.prototype.setMap = function(map)
+{
+	this.map = map;
+};
+cser.control.prototype.setPosition = function(pos)
+{
+	this.position = pos;
+};
+cser.control.prototype.getPosition = function() {
+	return this.position;
+};
+cser.control.prototype.render =function() {
+	if ($("#"+this.id).length<1) {
+		var pv = document.createElement('div');
+		pv.className = 'mapcontrol';
+		pv.id = this.id;
+		globals.map.getTarget().appendChild(pv);
+		var that = this;
+		$("#" + this.id).click(
+			function () {
+				that.clickListener.call(that, that.map);
+			}
+		);
+		if (cser.isDef(this.className))
+			$("#" + this.id).addClass(this.className);
+		if (cser.isDef(this.html))
+			$("#" + this.id).html(this.html);
+	}
+	var x,y=0;
+	if (this.position==POSITION_LEFTTOP)
+	{x = 0;y=0}
+	else if (this.position==POSITION_RIGHTTOP)
+	{x=this.map.width;y=0;}
+	x = x+this.anchor[0];
+	y = y+this.anchor[1];
+	$("#"+this.id).css({left:x+"px",top:y+"px"});
+};
+cser.mapTypeControl = function(options)
+{
+	if (!cser.isDef(options))
+		options={};
+	options.position = POSITION_RIGHTTOP;
+	options.anchor = cser.isDef(options.anchor)?options.anchor:[-100,20];
+	options.id = "mapTypeControl";
+	options.className = "mapTypeControl";
+	options.html="<span title='卫星图'></span>";
+	var that = this;
+	options.click = function(map)
+	{
+		if (map.getMapType() ==MAPTYPE_NORMAL)
+			map.setMapType(MAPTYPE_SATELLITE);
+		else
+			map.setMapType(MAPTYPE_NORMAL);
+		if (that.map.getMapType()==MAPTYPE_NORMAL) {
+			$("#" + that.id + " span").attr("title", "普通地图").removeClass("actived");
+		}
+		else {
+			$("#" + that.id + " span").attr("title", "卫星地图").addClass("actived");
+		}
+	};
+	cser.base(this,options);
+};
+cser.inherits(cser.mapTypeControl,cser.control);
+cser.mapTypeControl.prototype.render =function() {
+	cser.superinvoke(this,'render');
+	if (this.map.getMapType()==MAPTYPE_NORMAL)
+		$("#"+this.id+" span").attr("title","普通地图").removeClass("actived");
+	else
+		$("#"+this.id+" span").attr("title","卫星地图").addClass("actived");
 }
