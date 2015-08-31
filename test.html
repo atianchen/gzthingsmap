@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh_cn">
+<head>
+ <meta charset="UTF-8">
+ <title>csermaptest</title>
+ <link rel="stylesheet" href="css/ol.css" type="text/css">
+ <link rel="stylesheet" href="http://cdn.bootcss.com/qtip2/2.2.1/jquery.qtip.min.css" type="text/css">
+ <script src="http://cdn.bootcss.com/jquery/1.11.3/jquery.min.js"></script>
+ <script src="js/gzmap.js" type="text/javascript"></script>
+ <style>
+  *{padding:0;margin:0}
+ </style>
+</head>
+<body>
+<div id="map" class="map" style="height:600px;width:100%"></div>
+<script>
+ //[106.588156,29.567628]
+ var map = new cser.gmap({target:document.getElementById('map'),center:[106.588156,29.567628],zoom:17,minZoom:6,maxZoom:19});
+ var marker = new cser.gmarker({position:[106.588156,29.567628],icon:new cser.icon({src:'img/marker.png',anchor:[0.5, 34],size:[20,34]}),
+  label:new cser.text({text:"测试",size:"14px",font:'宋体',offset:[0,10]}),draggable:true});
+ //marker.setPosition([106.588156,29.567628]);
+ map.addEvent("markerclick",function(marker,evt)
+ {
+  map.showPopup(marker,"测试","teset",[0,30]);
+ });
+ map.addEvent("markermouseover",function(marker,evt)
+ {
+  map.showPopup(marker,"测试","teset",[0,30]);
+ });
+ map.addEvent("markerdragend",function(marker)
+ {
+  $("#debug").val(marker.getPosition().toString());
+ });
+ map.addEvent("mapclick",function(evt)
+ {
+  //map.addOverlay(new cser.gmarker({position:evt.position,icon:new cser.icon({src:'marker.png',anchor:[0.5, 34],size:[20,34]}),
+  //label:new cser.text({text:"测试",size:"14px",font:'宋体',offset:[0,10]}),draggable:true}));
+ });
+ map.addOverlay(marker);
+ var circle = new cser.circle({position:[106.588156,29.567628],radius:100,fillColor:"#66ccff",opacity:0.6,color:"#ff0099"});
+ map.addOverlay(circle);
+ var line = new cser.line({points:[[106.588156,29.567628],[106.568156,29.657628],[106.768156,29.657628]],opacity:0.6,color:"#ff0099",strokeWidth:3});
+ map.addOverlay(line);
+</script>
+<input type="text" id="debug"/>
+
+</body>
+</html>
