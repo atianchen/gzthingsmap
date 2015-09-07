@@ -3,6 +3,7 @@ goog.require('ol.Attribution');
 goog.require('ol.TileUrlFunction');
 goog.require('ol.source.XYZ');
 globals={};
+
 ol.gmap={ urlTpl:"http://mt2.google.cn/vt/lyrs={t}&hl=zh-CN&gl=cn&x={x}&y={y}&z={z}"};
 ol.gmap.tiletype={BASEMAP:"s",LABEL:"h"};
 ol.amap={urlTpl:"http://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}"};
