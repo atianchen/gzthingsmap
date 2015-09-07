@@ -816,12 +816,14 @@ cser.gmap.prototype.initEventListener=function()
 		  }
 		if (events[cser.events.MARKERMOUSEOVER])
 		{
+
 		  var pixel = globals.map.getEventPixel(evt.originalEvent);
 		  var feature = globals.map.forEachFeatureAtPixel(evt.pixel,
 				  function(feature, layer) {
 					return feature;
 				  });
 		  if (feature && feature.type==cser.overlay.overlayTypes.MARKER) {
+					  evt.position = cser.geo.reverseTransform(evt.coordinate);
 					globals.map.getTarget().style.cursor = 'pointer';
 					events[cser.events.MARKERMOUSEOVER].call(that,feature.marker,evt);
 					return;
@@ -914,6 +916,10 @@ cser.map.prototype.closePopup=function()
 		$('#popup').qtip('hide');
 		this.status[cser.status.POPUP]=false;
 	}
+};
+cser.map.prototype.isPopupShow=function()
+{
+	return this.status[cser.status.POPUP];
 };
 POSITION_LEFTTOP = "lt";
 POSITION_RIGHTTOP = "rt";
