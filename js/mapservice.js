@@ -57,9 +57,10 @@ cser.events={
 	DBLCLICK:"dblclick",
 	MOUSEDOWN: 'mousedown',
 	MOUSEUP: 'mouseup',
-	MOUSEOVER: 'mouseover',
 	MOUSEOUT: 'mouseout',
 	MARKERCLICK:"markerclick",
+	OVERLAYCLICK:"overlayclick",
+	MOUSEMOVE:"mousemove",
 	MARKERMOUSEOVER:"markermouseover",
 	MARKERDRAGEND:"markerdragend",
 	MAPCLICK:"mapclick"
@@ -328,7 +329,8 @@ cser.overlay=function(options)
 };
 cser.overlay.overlayTypes = {
 	MARKER:"marker",
-	CIRCLE:"circle"
+	CIRCLE:"circle",
+	LINE:"line"
 };
 cser.inherits(cser.overlay,cser.Object);
 cser.overlay.prototype.setAttr=function(attrName,attrValue)
@@ -466,12 +468,18 @@ cser.line = function(options)
 		{geometry: new ol.geom.LineString(cser.geo.transform(this.points))}
 	);
 	this.feature.setStyle(this.getStyle());
+	this.feature.type = cser.overlay.overlayTypes.LINE;
+	this.feature.overlay = this;
 };
 cser.inherits(cser.line,cser.geometry);
 cser.line.prototype.setPoints = function(points)
 {
-	this.points = options.points;
-	this.feature.getGeometry().setCenter(cser.geo.transform(this.points));
+	this.points = points;
+	this.feature.getGeometry().setCoordinates(cser.geo.transform(this.points));
+};
+cser.line.prototype.getPoints = function()
+{
+	return this.points;
 };
 cser.line.prototype.render = function()
 {
@@ -789,17 +797,23 @@ cser.gmap.prototype.initEventListener=function()
 	});
 	this.map.on('click', function(evt) {
 
-		if (events[cser.events.MARKERCLICK])
+		if (events[cser.events.MARKERCLICK] || events[cser.events.OVERLAYCLICK])
 		{
 			evt.position = cser.geo.reverseTransform(evt.coordinate);
 			var feature = globals.map.forEachFeatureAtPixel(evt.pixel,
 			  function(feature, layer) {
 				return feature;
 			  });
-		  if (feature && feature.type==cser.overlay.overlayTypes.MARKER) {
-				events[cser.events.MARKERCLICK].call(that,feature.marker,evt);
-				return;
-		  } 
+		  if (feature){
+			  	if ( feature.type==cser.overlay.overlayTypes.MARKER && events[cser.events.MARKERCLICK]) {
+					events[cser.events.MARKERCLICK].call(that, feature.marker, evt);
+					return;
+				}
+				else if (events[cser.events.OVERLAYCLICK]) {
+					events[cser.events.OVERLAYCLICK].call(that, feature.overlay, evt);
+					return;
+				}
+		  }
 		}
 		if (events[cser.events.MAPCLICK])
 		{
@@ -815,16 +829,21 @@ cser.gmap.prototype.initEventListener=function()
 			that.closePopup();
 			return;
 		  }
+
+		var pixel = globals.map.getEventPixel(evt.originalEvent);
+		evt.position = cser.geo.reverseTransform(evt.coordinate);
+		if (events[cser.events.MOUSEMOVE])
+		{
+			events[cser.events.MOUSEMOVE].call(that,evt);
+		}
 		if (events[cser.events.MARKERMOUSEOVER])
 		{
 
-		  var pixel = globals.map.getEventPixel(evt.originalEvent);
 		  var feature = globals.map.forEachFeatureAtPixel(evt.pixel,
 				  function(feature, layer) {
 					return feature;
 				  });
 		  if (feature && feature.type==cser.overlay.overlayTypes.MARKER) {
-					  evt.position = cser.geo.reverseTransform(evt.coordinate);
 					globals.map.getTarget().style.cursor = 'pointer';
 					events[cser.events.MARKERMOUSEOVER].call(that,feature.marker,evt);
 					return;
@@ -832,6 +851,7 @@ cser.gmap.prototype.initEventListener=function()
 			globals.map.getTarget().style.cursor = '';
 			//that.closePopup();
 		}
+
 	});
 
 };
